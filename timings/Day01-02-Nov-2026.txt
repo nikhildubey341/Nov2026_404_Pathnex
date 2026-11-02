@@ -1,0 +1,4 @@
+3 Hourse linux online session
+1 Hour Practice for linux commands
+30 min practice for evening session
+1 Hour to create EC2 Instance and connect to github
