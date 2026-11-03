@@ -1,0 +1,5 @@
+3 Hours online class on Linux
+1 Hour Practice on linux
+TODO- Revison all the linux videos again
+then practice that on WSL/Gitbash
+
