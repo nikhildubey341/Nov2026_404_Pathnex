@@ -1,0 +1,104 @@
+# Day 04 - Basic CI/CD Concepts with Jenkins & GitLab
+
+
+# Jenkinsfile - Basic CI Pipeline
+pipeline {                                  # pipeline = the whole CI/CD process
+    agent any                               # agent any = run on any available machine
+    stages {                                # stages = the list of phases
+        stage('Build') {                    # stage = one phase
+            steps {                         # steps = the commands to run in a stage
+                echo 'Building project'     # echo = prints the given text on the screen
+            }
+        }
+        stage('Test') {
+            steps {
+                echo 'Running tests'
+            }
+        }
+        stage('Deploy') {
+            steps {
+                echo 'Deploying application'
+            }
+        }
+    }
+}
+
+
+# GitLab CI/CD - Basic Pipeline
+stages:                                     # stages = the order in which jobs run
+  - build                                   # build = the stage that builds
+  - test                                    # test = the stage that tests
+  - deploy                                  # deploy = the stage that releases
+
+build:                                      # job name = a job GitLab runs
+  stage: build                              # stage: = the stage this job belongs to
+  script:                                   # script = the commands the job runs
+    - echo "Building project"
+
+test:
+  stage: test
+  script:
+    - echo "Running tests"
+
+deploy:
+  stage: deploy
+  script:
+    - echo "Deploying application"
+
+
+# Ansible - Install and Configure Nginx
+- name: Install and configure Nginx         # name (play) = a label for the whole job
+  hosts: all                                # hosts: all = run on every server in the inventory file
+  become: yes                               # become: yes = run as admin (sudo)
+  tasks:                                    # tasks = the list of steps to run in order
+    - name: Install nginx                   # name (task) = a label for one step
+      yum:                                  # yum = package manager used to install software
+        name: nginx                         # name (module) = the package to install
+        state: present                      # state: present = make sure it is installed
+    - name: Configure nginx
+      template:                             # template = copies a config file to the server
+        src: nginx.conf.j2                  # src = the source file
+        dest: /etc/nginx/nginx.conf         # dest = where the file is saved on the server
+    - name: Start nginx service
+      service:                              # service = module that controls background services
+        name: nginx                         # name (service module) = the service to manage
+        state: started                      # state: started = make sure the service is running now
+        enabled: yes                        # enabled: yes = start the service automatically after reboot
+
+
+# Terraform - EC2 with Security Group
+resource "aws_security_group" "example" {   # resource = a thing Terraform creates (type + my own nickname)
+  name        = "example_security_group"    # name (security group) = the name of the group
+  description = "Allow SSH and HTTP"        # description = a short note about the group
+  ingress {                                 # ingress = rule for incoming traffic
+    from_port   = 22                        # from_port = the first port
+    to_port     = 22                        # to_port = the last port
+    protocol    = "tcp"                     # protocol = the type of traffic
+    cidr_blocks = ["0.0.0.0/0"]             # cidr_blocks = the allowed IP addresses
+  }
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {                                  # egress = rule for outgoing traffic
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"                      # protocol = the type of traffic (-1 = all)
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+
+# Docker
+# Apache Container
+FROM ubuntu:22.04                                          # FROM = the base image to start from
+RUN apt update && apt install apache2 -y                   # RUN = runs a command while the image is being built | && = run next if first worked | apt install -y = installs a package without asking
+RUN echo "Hello Nikhil" > /var/www/html/index.html        # > = writes the output into a file
+CMD ["apachectl", "-D", "FOREGROUND"]                      # CMD = the default command that runs when the container starts | apachectl = the Apache control tool
+
+# Bash Real Path
+/var/www/html                                              # /var/www/html = the folder where Apache reads web pages from
