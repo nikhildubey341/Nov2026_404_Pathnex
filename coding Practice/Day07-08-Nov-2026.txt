@@ -1,0 +1,83 @@
+Day 07 - Automating Cloud Infrastructure with Terraform & Ansible
+
+# Ansible - Setup Nginx with Custom Config
+- name: Setup Nginx with Custom Config          # name (play) = a label for the whole job
+  hosts: all                                    # hosts: all = run on every server in the inventory file
+  become: yes                                   # become: yes = run as admin (sudo)
+  tasks:                                        # tasks = the list of steps to run in order
+    - name: Install nginx                       # name (task) = a label for one step
+      yum:                                      # yum = package manager used to install software
+        name: nginx                             # name (module) = the package to install
+        state: present                          # state: present = make sure it is installed
+    - name: Copy custom nginx.conf
+      copy:                                     # copy (Ansible) = module that copies a file to the server
+        src: nginx.conf                         # src = the source file
+        dest: /etc/nginx/nginx.conf             # dest = where the file is saved on the server
+    - name: Start nginx service
+      service:                                  # service = module that controls background services
+        name: nginx                             # name (service module) = the service to manage
+        state: started                          # state: started = make sure the service is running now
+        enabled: yes                            # enabled: yes = start the service automatically after reboot
+# Terraform - Provision EC2 with IAM Role
+resource "aws_iam_role" "ec2_role" {            # resource = a thing Terraform creates (type + my own nickname)
+  name               = "pathnex_ec2_role"       # name (IAM role) = the name of the role
+  assume_role_policy = jsonencode({             # assume_role_policy = the rule that says who can use this role | jsonencode = converts the data into JSON format
+    Version = "2012-10-17"                      # Version = the policy language version
+    Statement = [                               # Statement = the list of permission rules
+      {
+        Action = "sts:AssumeRole"               # Action = what is allowed
+        Effect = "Allow"                        # Effect = Allow or Deny the action
+        Principal = {                           # Principal = who the rule applies to
+          Service = "ec2.amazonaws.com"         # Service = the AWS service allowed to use the role
+        }
+      },
+    ]
+  })
+}
+
+resource "aws_instance" "pathnex_ec2" {
+  ami           = "ami-0abcd1234abcd1234"       # ami = the OS image used to create the server
+  instance_type = "t2.medium"                   # instance_type = the size of the server (CPU and RAM)
+  iam_instance_profile = aws_iam_role.ec2_role.name   # iam_instance_profile = the IAM role given to the server
+  tags = {                                      # tags = labels used to find and organise the server
+    Name = "Pathnex-EC2"                        # Name = the name shown in the AWS console
+  }
+}
+
+# Kubernetes - ConfigMap and Secret Management
+apiVersion: v1                                  # apiVersion = which Kubernetes API version this object uses
+kind: ConfigMap                                 # kind = the type of object to create
+metadata:                                       # metadata = information that identifies this object
+  name: pathnex-config                          # name (Kubernetes) = the name of this object
+data:                                           # data = the key-value data stored in the object
+  app.properties: |                             # app.properties = the file name inside the ConfigMap | | = keeps the next lines as plain text
+    key=value
+
+---                                             # --- = separates two objects in one file
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pathnex-secret
+type: Opaque                                    # type (Secret) = the kind of secret (Opaque = general purpose)
+data:
+  password: cGF0aG5leHBhc3M=                    # password = the secret value, stored in base64 form
+
+# Shell Script - Archive Logs
+#!/bin/bash
+tar -czf /var/log/archived_logs.tar.gz /var/log/*.log   # tar = packs files into one archive | -czf = create, compress, and name the file | * = matches any text
+
+
+# Docker Java Application 
+# JavaScript
+class Hello {                                           # class = a blueprint that holds the code
+    public static void main(String[] args) {            # main = where the program starts
+        System.out.println("Hello Nikhil");            # System.out.println = shows the given text on the screen
+    }
+}
+
+# Docker File
+FROM openjdk:17                                         # FROM = the base image to start from | openjdk:17 = the Java image, version 17
+WORKDIR /opt/pathnex/java-app                           # WORKDIR = sets the working folder inside the image
+COPY Hello.java /opt/pathnex/java-app/                  # COPY = copies a file from my computer into the image
+RUN javac /opt/pathnex/java-app/Hello.java              # RUN = runs a command while the image is being built | javac = compiles Java code into a runnable file
+CMD ["java", "-cp", "/opt/pathnex/java-app", "Hello"]   # CMD = the default command that runs when the container starts | java = runs a Java program | -cp = where to find the class files
