@@ -1,0 +1,103 @@
+Day 08 - Introduction to Docker and CI/CD Pipelines
+# Ansible - Install Docker Compose
+- name: Install Docker Compose                  # name (play) = a label for the whole job
+  hosts: all                                    # hosts: all = run on every server in the inventory file
+  become: yes                                   # become: yes = run as admin (sudo)
+  tasks:                                        # tasks = the list of steps to run in order
+    - name: Install dependencies                # name (task) = a label for one step
+      yum:                                      # yum = package manager used to install software
+        name: "python3-pip"                     # name (module) = the package to install
+        state: present                          # state: present = make sure it is installed
+    - name: Install docker-compose
+      pip:                                      # pip = module that installs Python packages
+        name: docker-compose                    # name (pip module) = the Python package to install
+
+# Terraform - EC2 with Security Group and EBS Volume
+resource "aws_security_group" "allow_ssh_http" {   # resource = a thing Terraform creates (type + my own nickname)
+  name        = "allow_ssh_http"                   # name (security group) = the name of the group
+  description = "Allow SSH and HTTP access"        # description = a short note about the group
+  ingress {                                        # ingress = rule for incoming traffic
+    from_port   = 22                               # from_port = the first port
+    to_port     = 22                               # to_port = the last port
+    protocol    = "tcp"                            # protocol = the type of traffic
+    cidr_blocks = ["0.0.0.0/0"]                    # cidr_blocks = the allowed IP addresses
+  }
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_instance" "pathnex_ec2" {
+  ami           = "ami-0abcd1234abcd1234"          # ami = the OS image used to create the server
+  instance_type = "t3.medium"                      # instance_type = the size of the server (CPU and RAM)
+  security_groups = [aws_security_group.allow_ssh_http.name]   # security_groups = the security groups attached to the server
+
+  ebs_block_device {                               # ebs_block_device = an extra disk attached to the server
+    device_name = "/dev/sdh"                       # device_name = the disk's name on the server
+    volume_size = 30                               # volume_size = the disk size in GB
+  }
+}
+
+# Kubernetes - Service with NodePort
+apiVersion: v1                                  # apiVersion = which Kubernetes API version this object uses
+kind: Service                                   # kind = the type of object to create
+metadata:                                       # metadata = information that identifies this object
+  name: pathnex-service                         # name (Kubernetes) = the name of this object
+spec:                                           # spec = the desired setup of this object
+  type: NodePort                                # type (Service) = how the service is exposed (NodePort = open a port on every node)
+  selector:                                     # selector = how it finds the pods that belong to it
+    app: pathnex-app
+  ports:                                        # ports = the list of ports the container uses
+    - protocol: TCP                             # protocol = the type of traffic
+      port: 80                                  # port = the port the service listens on
+      nodePort: 30007                           # nodePort = the port opened on every node
+
+# Jenkinsfile - Docker Build and Push
+pipeline {                                      # pipeline = the whole CI/CD process
+    agent any                                   # agent any = run on any available machine
+    stages {                                    # stages = the list of phases
+        stage('Build Docker Image') {           # stage = one phase
+            steps {                             # steps = the commands to run in a stage
+                script {                        # script (Jenkins) = a block that allows full Groovy code
+                    docker.build('pathnex-app') # docker.build = builds a Docker image
+                }
+            }
+        }
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    docker.withRegistry('https://docker.io', 'docker-credentials') {   # docker.withRegistry = logs in to a registry using saved credentials
+                        docker.image('pathnex-app').push('latest')                     # docker.image().push = uploads the image with the given tag (latest)
+                    }
+                }
+            }
+        }
+    }
+}
+
+# GitLab CI/CD - Build & Push Docker Image
+stages:                                         # stages = the order in which jobs run
+  - build                                       # build = the stage that builds
+  - push                                        # push = the stage that uploads
+
+build:                                          # job name = a job GitLab runs
+  stage: build                                  # stage: = the stage this job belongs to
+  script:                                       # script = the commands the job runs
+    - docker build -t pathnex-app .             # docker build = builds an image from the Dockerfile | -t = gives the image a name (tag) | . = the current folder
+
+push:
+  stage: push
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"   # docker login = logs in to a registry | -u = user name | -p = password | $CI_... = a saved variable from GitLab
+    - docker push pathnex-app                   # docker push = uploads an image to the registry
+
+
+# Docker
+# Alpine Linux
+FROM alpine:latest                              # FROM = the base image to start from | alpine:latest = the newest version of the Alpine image
+WORKDIR /opt/pathnex/alpine-app                 # WORKDIR = sets the working folder inside the image
+CMD ["echo", "Hello Nikhil"]                   # CMD = the default command that runs when the container starts | echo = prints the given text on the screen
