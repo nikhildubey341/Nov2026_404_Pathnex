@@ -1,0 +1,97 @@
+Day 09 - Docker Integration with Jenkins & GitLab
+# Ansible - Setup Docker Container for Nginx
+- name: Setup Docker Container for Nginx          # name (play) = a label for the whole job
+  hosts: all                                      # hosts: all = run on every server in the inventory file
+  become: yes                                     # become: yes = run as admin (sudo)
+  tasks:                                          # tasks = the list of steps to run in order
+    - name: Pull Nginx image                      # name (task) = a label for one step
+      docker_image:                               # docker_image = module that manages Docker images
+        name: nginx                               # name (docker_image module) = the image name
+        source: pull                              # source: pull = download the image from a registry
+    - name: Run Nginx container
+      docker_container:                           # docker_container = module that manages containers
+        name: nginx-container                     # name (docker_container module) = the container name
+        image: nginx                              # image = the Docker image to run
+        state: started                            # state: started (container) = make sure the container is running
+        published_ports:                          # published_ports = ports opened on the host for the container
+          - "8080:80"                             # "8080:80" = host port 8080 to container port 80
+		  
+# Terraform — EC2 with Auto Scaling Group
+resource "aws_launch_configuration" "example" {   # resource = a thing Terraform creates (type + my own nickname)
+  name = "example-config"                         # name (launch configuration) = the name of the configuration
+  image_id = "ami-0abcd1234abcd1234"              # image_id = the OS image used to create the server
+  instance_type = "t3.medium"                     # instance_type = the size of the server (CPU and RAM)
+}
+
+resource "aws_autoscaling_group" "example" {
+  desired_capacity     = 2                        # desired_capacity = how many servers to run normally
+  max_size             = 3                        # max_size = the most servers allowed
+  min_size             = 1                        # min_size = the fewest servers allowed
+  vpc_zone_identifier  = ["subnet-12345678"]      # vpc_zone_identifier = the subnets where servers are placed
+  launch_configuration = aws_launch_configuration.example.id   # launch_configuration = the template used to create servers
+}
+
+# Kubernetes - Horizontal Pod Autoscaler (HPA)
+apiVersion: apps/v1                               # apiVersion = which Kubernetes API version this object uses
+kind: Deployment                                  # kind = the type of object to create
+metadata:                                         # metadata = information that identifies this object
+  name: pathnex-deployment                        # name (Kubernetes) = the name of this object
+spec:                                             # spec = the desired setup of this object
+  replicas: 1                                     # replicas = how many pods should always be running
+  selector:                                       # selector = how it finds the pods that belong to it
+    matchLabels:                                  # matchLabels = pods with this label belong to it
+      app: pathnex-app
+  template:                                       # template = the blueprint used to create each pod
+    metadata:
+      labels:                                     # labels = tags attached to the pod (must match the selector)
+        app: pathnex-app
+    spec:
+      containers:                                 # containers = the list of containers inside the pod
+        - name: nginx                             # name (container) = the name of the container inside the pod
+          image: nginx
+          ports:                                  # ports = the list of ports the container uses
+            - containerPort: 80                   # containerPort = the port the app listens on inside the container
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: pathnex-hpa
+spec:
+  scaleTargetRef:                                 # scaleTargetRef = the object to scale
+    apiVersion: apps/v1
+    kind: Deployment
+    name: pathnex-deployment                      # name (scale target) = the name of the object to scale
+  minReplicas: 1                                  # minReplicas = the fewest pods allowed
+  maxReplicas: 10                                 # maxReplicas = the most pods allowed
+  targetCPUUtilizationPercentage: 50              # targetCPUUtilizationPercentage = the CPU usage % that triggers scaling
+  
+# Jenkinsfile — Deploy to Kubernetes
+pipeline {                                        # pipeline = the whole CI/CD process
+    agent any                                     # agent any = run on any available machine
+    stages {                                      # stages (Jenkins) = the list of phases
+        stage('Deploy to Kubernetes') {           # stage (Jenkins) = one phase
+            steps {                               # steps = the commands to run in a stage
+                script {                          # script (Jenkins) = a block that allows full Groovy code
+                    sh 'kubectl apply -f deployment.yaml'   # sh = runs a shell command | kubectl apply -f = creates or updates objects from a file
+                }
+            }
+        }
+    }
+}
+
+# GitLab CI/CD - Deploy to Kubernetes
+stages:                                           # stages (GitLab) = the order in which jobs run
+  - deploy                                        # deploy = the stage that releases
+
+deploy:                                           # job name = a job GitLab runs
+  stage: deploy                                   # stage: = the stage this job belongs to
+  script:                                         # script (GitLab) = the commands the job runs
+    - kubectl apply -f kubernetes/deployment.yaml
+
+
+# Docker
+# Environment Variables
+FROM ubuntu:22.04                                 # FROM = the base image to start from
+ENV INSTITUTE=Pathnex                             # ENV = sets an environment variable inside the image
+ENV COURSE=DevOps
+CMD echo "$INSTITUTE - $COURSE"                   # CMD = the default command that runs when the container starts | echo = prints the given text on the screen | "$INSTITUTE" = the value of a variable
