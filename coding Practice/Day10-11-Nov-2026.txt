@@ -1,0 +1,148 @@
+# Day 10 - Advanced Kubernetes, Jenkins, and GitLab CI
+
+# Ansible - Create Docker Containers for Multiple Applications
+
+- name: Setup Docker Containers for Multiple Apps    # name (play) = a label for the whole job
+  hosts: all                                         # hosts: all = run on every server in the inventory file
+  become: yes                                        # become: yes = run as admin (sudo)
+  tasks:                                             # tasks = the list of steps to run in order
+    - name: Pull Web App Image                       # name (task) = a label for one step
+      docker_image:                                  # docker_image = module that manages Docker images
+        name: my-web-app                             # name (docker_image module) = the image name
+        source: pull                                 # source: pull = download the image from a registry
+
+    - name: Pull Database App Image
+      docker_image:
+        name: my-database-app
+        source: pull
+
+    - name: Run Web App Container
+      docker_container:                              # docker_container = module that manages containers
+        name: web-app                                # name (docker_container module) = the container name
+        image: my-web-app                            # image = the Docker image to run
+        state: started                               # state: started (container) = make sure the container is running
+        published_ports:                             # published_ports = ports opened on the host for the container
+          - "8080:80"                                # "8080:80" = host port 8080 to container port 80
+    
+    - name: Run Database App Container
+      docker_container:
+        name: database-app
+        image: my-database-app
+        state: started
+        published_ports:
+          - "3306:3306"
+
+# Terraform - VPC with Private and Public Subnets
+resource "aws_vpc" "main" {                          # resource = a thing Terraform creates (type + my own nickname)
+  cidr_block = "10.0.0.0/16"                         # cidr_block = the IP address range of the network
+}
+
+resource "aws_subnet" "public" {
+  vpc_id                  = aws_vpc.main.id          # vpc_id = the network this subnet belongs to
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "us-east-1a"             # availability_zone = the data center zone inside the region
+  map_public_ip_on_launch = true                     # map_public_ip_on_launch = gives servers a public IP automatically
+}
+
+resource "aws_subnet" "private" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.2.0/24"
+  availability_zone = "us-east-1b"
+}
+
+# Kubernetes - Deploying StatefulSet
+apiVersion: apps/v1                                  # apiVersion = which Kubernetes API version this object uses
+kind: StatefulSet                                    # kind = the type of object to create
+metadata:                                            # metadata = information that identifies this object
+  name: pathnex-db                                   # name (Kubernetes) = the name of this object
+spec:                                                # spec = the desired setup of this object
+  serviceName: "pathnex-db"                          # serviceName = the service that gives the pods their network name
+  replicas: 3                                        # replicas = how many pods should always be running
+  selector:                                          # selector = how it finds the pods that belong to it
+    matchLabels:                                     # matchLabels = pods with this label belong to it
+      app: pathnex-db
+  template:                                          # template = the blueprint used to create each pod
+    metadata:
+      labels:                                        # labels = tags attached to the pod (must match the selector)
+        app: pathnex-db
+    spec:
+      containers:                                    # containers = the list of containers inside the pod
+        - name: db                                   # name (container) = the name of the container inside the pod
+          image: mysql:5.7
+          volumeMounts:                              # volumeMounts = where a volume is attached inside the container
+            - mountPath: /var/lib/mysql              # mountPath = the folder inside the container where the volume appears
+              name: mysql-storage                    # name (volume mount) = the volume to attach
+  volumeClaimTemplates:                              # volumeClaimTemplates = a template that creates storage for each pod
+    - metadata:
+        name: mysql-storage                          # name (volume claim) = the name of the storage claim
+      spec:
+        accessModes: ["ReadWriteOnce"]               # accessModes = how the storage can be used | ReadWriteOnce = one node can read and write
+        resources:                                   # resources = the amount of storage asked for
+          requests:                                  # requests = the minimum asked for
+            storage: 1Gi                             # storage = the storage size (1Gi = about 1 GB)
+			
+# Jenkinsfile - Build and Deploy to Kubernetes
+pipeline {                                           # pipeline = the whole CI/CD process
+    agent any                                        # agent any = run on any available machine
+    environment {                                    # environment = variables available to the whole pipeline
+        IMAGE_NAME = 'pathnex-web-app'               # IMAGE_NAME = a variable that holds the image name
+    }
+    stages {                                         # stages (Jenkins) = the list of phases
+        stage('Build Docker Image') {                # stage (Jenkins) = one phase
+            steps {                                  # steps = the commands to run in a stage
+                script {                             # script (Jenkins) = a block that allows full Groovy code
+                    docker.build("${env.IMAGE_NAME}")   # docker.build = builds a Docker image | "${env.IMAGE_NAME}" = the value of the IMAGE_NAME variable
+                }
+            }
+        }
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    docker.withRegistry('https://docker.io', 'docker-credentials') {   # docker.withRegistry = logs in to a registry using saved credentials
+                        docker.image("${env.IMAGE_NAME}").push('latest')               # docker.image().push = uploads the image with the given tag (latest)
+                    }
+                }
+            }
+        }
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    sh 'kubectl apply -f deployment.yaml'   # sh = runs a shell command | kubectl apply -f = creates or updates objects from a file
+                }
+            }
+        }
+    }
+}
+
+# GitLab CI/CD - Build, Push, and Deploy
+stages:                                              # stages (GitLab) = the order in which jobs run
+  - build                                            # build = the stage that builds
+  - push                                             # push = the stage that uploads
+  - deploy                                           # deploy = the stage that releases
+
+build:                                               # job name = a job GitLab runs
+  stage: build                                       # stage: = the stage this job belongs to
+  script:                                            # script (GitLab) = the commands the job runs
+    - docker build -t pathnex-web-app .              # docker build = builds an image from the Dockerfile | -t = gives the image a name (tag) | . = the current folder
+
+push:
+  stage: push
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"   # docker login = logs in to a registry | -u = user name | -p = password | $CI_... = a saved variable from GitLab
+    - docker push pathnex-web-app                    # docker push = uploads an image to the registry
+
+deploy:
+  stage: deploy
+  script:
+    - kubectl apply -f kubernetes/deployment.yaml
+
+
+# Docker
+# Working Directory & COPY
+FROM ubuntu:22.04                                    # FROM = the base image to start from
+WORKDIR /opt/pathnex/devops-project                  # WORKDIR = sets the working folder inside the image
+COPY . /opt/pathnex/devops-project/                  # COPY = copies a file from my computer into the image | . = everything in the current folder
+CMD ["ls", "-l", "/opt/pathnex/devops-project"]      # CMD = the default command that runs when the container starts | ls = lists files | -l = shows details for each file
+
+# Real Path
+/opt/pathnex/devops-project                          # /opt/pathnex/devops-project = the folder where the app lives
