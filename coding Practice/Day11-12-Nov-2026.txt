@@ -1,0 +1,109 @@
+# Day 11 - Kubernetes with Helm, Advanced Terraform and GitLab CI/CD
+
+# Ansible - Install Helm on Server
+- name: Install Helm                                 # name (play) = a label for the whole job
+  hosts: all                                         # hosts: all = run on every server in the inventory file
+  become: yes                                        # become: yes = run as admin (sudo)
+  tasks:                                             # tasks = the list of steps to run in order
+    - name: Download Helm                            # name (task) = a label for one step
+      get_url:                                       # get_url = module that downloads a file from a web address
+        url: https://get.helm.sh/helm-v3.7.0-linux-amd64.tar.gz   # url = the web address to download from
+        dest: /tmp/helm.tar.gz                       # dest = where the file is saved on the server
+
+    - name: Extract Helm
+      unarchive:                                     # unarchive = module that unpacks an archive file
+        src: /tmp/helm.tar.gz                        # src = the source file
+        dest: /usr/local/bin/
+        remote_src: yes                              # remote_src: yes = the source file is already on the server
+
+    - name: Set Helm binary permissions
+      file:                                          # file = module that manages file and folder settings
+        path: /usr/local/bin/helm                    # path = the file or folder to change
+        mode: '0755'                                 # mode = who can read, write, run (0755)
+		
+# Terraform - Provision EC2 with Elastic IP
+resource "aws_eip" "pathnex_eip" {                   # resource = a thing Terraform creates (type + my own nickname)
+  instance = aws_instance.pathnex_ec2.id             # instance = the server this Elastic IP is attached to
+}
+
+resource "aws_instance" "pathnex_ec2" {
+  ami           = "ami-0abcd1234abcd1234"            # ami = the OS image used to create the server
+  instance_type = "t3.medium"                        # instance_type = the size of the server (CPU and RAM)
+  
+  tags = {                                           # tags = labels used to find and organise the server
+    Name = "Pathnex-EC2"                             # Name = the name shown in the AWS console
+  }
+}
+
+# Kubernetes - Helm Chart for Nginx
+helm repo add stable https://charts.helm.sh/stable   # helm repo add = adds a chart store (repository) to Helm | stable = the name given to the repository
+helm install pathnex-nginx stable/nginx-ingress      # helm install = installs a chart as a named release | pathnex-nginx = the release name | stable/nginx-ingress = the chart to install
+
+
+# Jenkinsfile - Multi-Stage Pipeline
+pipeline {                                           # pipeline = the whole CI/CD process
+    agent any                                        # agent any = run on any available machine
+    environment {                                    # environment = variables available to the whole pipeline
+        IMAGE_NAME = 'pathnex-web-app'               # IMAGE_NAME = a variable that holds the image name
+    }
+    stages {                                         # stages (Jenkins) = the list of phases
+        stage('Checkout') {                          # stage (Jenkins) = one phase
+            steps {                                  # steps = the commands to run in a stage
+                git 'https://github.com/pathnex/sample-repo.git'   # git = downloads code from a Git repository
+            }
+        }
+        stage('Build Docker Image') {
+            steps {
+                script {                             # script (Jenkins) = a block that allows full Groovy code
+                    docker.build("${env.IMAGE_NAME}")   # docker.build = builds a Docker image | "${env.IMAGE_NAME}" = the value of the IMAGE_NAME variable
+                }
+            }
+        }
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    docker.withRegistry('https://docker.io', 'docker-credentials') {   # docker.withRegistry = logs in to a registry using saved credentials
+                        docker.image("${env.IMAGE_NAME}").push('latest')               # docker.image().push = uploads the image with the given tag (latest)
+                    }
+                }
+            }
+        }
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    sh 'kubectl apply -f deployment.yaml'   # sh = runs a shell command | kubectl apply -f = creates or updates objects from a file
+                }
+            }
+        }
+    }
+}
+
+# GitLab CI/CD - Build, Push, and Deploy with Helm
+stages:                                              # stages (GitLab) = the order in which jobs run
+  - build                                            # build = the stage that builds
+  - push                                             # push = the stage that uploads
+  - deploy                                           # deploy = the stage that releases
+
+build:                                               # job name = a job GitLab runs
+  stage: build                                       # stage: = the stage this job belongs to
+  script:                                            # script (GitLab) = the commands the job runs
+    - docker build -t pathnex-web-app .              # docker build = builds an image from the Dockerfile | -t = gives the image a name (tag) | . = the current folder
+
+push:
+  stage: push
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"   # docker login = logs in to a registry | -u = user name | -p = password | $CI_... = a saved variable from GitLab
+    - docker push pathnex-web-app                    # docker push = uploads an image to the registry
+
+deploy:
+  stage: deploy
+  script:
+    - helm repo add stable https://charts.helm.sh/stable
+    - helm install pathnex-nginx stable/nginx-ingress
+
+
+# Docker
+# EXPOSE & Port Mapping
+FROM nginx                                           # FROM = the base image to start from
+EXPOSE 80                                            # EXPOSE = tells which port the container listens on
+docker run -d -p 8080:80 nginx                       # docker run = create and start a container from an image | -d = runs the container in the background | -p 8080:80 = connects port 8080 of my computer to port 80 of the container
