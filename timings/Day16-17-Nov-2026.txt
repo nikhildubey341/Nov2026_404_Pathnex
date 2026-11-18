@@ -1,0 +1,4 @@
+3 Hours Session on ArgoCD
+5 Hours Watch previous videos on Kubernetes
+2 Hours Pratice on Docker
+
