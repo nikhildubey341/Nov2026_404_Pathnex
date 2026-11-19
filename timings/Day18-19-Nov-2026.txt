@@ -1,0 +1,4 @@
+3 Hours Morning Session on Terraform
+4 Hours Previous Video of Kubernetes
+2 Hours Docker
+30 Min Practice for Evening Session
