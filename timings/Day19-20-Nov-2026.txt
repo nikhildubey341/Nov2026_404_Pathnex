@@ -1,0 +1,4 @@
+3 Hours Seesion on Ansible 
+3 Hours Watch previous videos on Kubernetes
+2 Hours Pratice on Docker
+45 Min Pratice for Evening Session
