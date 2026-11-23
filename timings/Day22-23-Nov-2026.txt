@@ -1,0 +1,4 @@
+4 Hours Session on CI/CD
+3 Hours watch previous videos on Kubernetes 
+2 Hours Practice on Kubernetes
+45 Min Practice for Evening Session
