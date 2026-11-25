@@ -1,0 +1,4 @@
+3 Hours Morning Session on ELK
+3 Hours Watch Practice videos on Kubernetes
+2 Hours Practice on Kubernetes
+30 Min Practice for Evening Session
