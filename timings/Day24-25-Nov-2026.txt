@@ -1,0 +1,4 @@
+2.5 Hours on Morning Session on Kafka
+3 Hours on Kubernetes Videos
+2 Hours Practice on Kubernetes
+45 Min Practice for Evening Session
