@@ -1,0 +1,4 @@
+2 Hours Session on SRE
+3 Hours Watch previous videos on Kubernetes
+2 Hours Practice on Kubernetes
+40 Min Practice for Evening Session
