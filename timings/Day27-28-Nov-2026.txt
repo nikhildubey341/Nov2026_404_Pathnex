@@ -1,0 +1,4 @@
+1 Hour Session DesvSecOps
+3 Hours Watch practice videos on Kunbernetes
+2 Hours Practice Kubernetes
+40 Min Practice for Evening Session
